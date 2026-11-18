@@ -77,7 +77,61 @@ def search_phone(message):
     result += f"🔵 Telegram: {tg_link}\n\n"
     result += "⚠️ <i>Данные паспорта и прописки не ищу.</i>"
     bot.send_message(message.chat.id, result, parse_mode='HTML')
+@bot.message_handler(commands=['doks'])
+def handle_doks(message):
+    user_query = message.text.replace('/doks', '').strip()
+    if not user_query:
+        bot.reply_to(message, "Напиши что искать: /doks +79991234567")
+        return
 
+    bot.reply_to(message, "🕵️‍♂️ <b>Этап 1: Первичный поиск (номер/ник)...</b>", parse_mode='HTML')
+
+    # 1. ИИ создает запросы для первичного поиска
+    queries = ask_groq_agent(f"Придумай 5 запросов в Google, чтобы найти имя и профили по этому запросу: {user_query}")
+    queries_list = [q.strip() for q in queries.split('\n') if q.strip()]
+
+    all_results = ""
+    for q in queries_list[:5]:
+        all_results += search_google(q)
+
+    if not all_results:
+        bot.reply_to(message, "❌ Первичный поиск не дал результатов.")
+        return
+
+    bot.reply_to(message, "🧠 <b>Этап 2: Анализ и поиск геолокации...</b>\nИИ ищет связи с городами и улицами...", parse_mode='HTML')
+
+    # 2. ИИ анализирует первичные данные и пытается вытащить имя
+    prompt_analysis = f"""
+    Пользователь ищет инфу по: {user_query}.
+    Вот результаты поиска: {all_results}.
+    
+    1. Найди настоящее имя/фамилию человека (если это возможно).
+    2. Если нашел имя, напиши мне 3 новых поисковых запроса, чтобы найти его город, работу и улицу (например: "Иван Иванов site:vk.com", "Иван Иванов адрес", "Иван Иванов дом"). 
+    3. Верни ТОЛЬКО список из 3-х новых запросов, если нашел имя. Если имя не нашел — напиши "НЕТ ИМЕНИ".
+    """
+    
+    deep_queries = ask_groq_agent(prompt_analysis)
+
+    # 3. Если ИИ нашел имя, делаем второй каскад запросов
+    if "НЕТ ИМЕНИ" not in deep_queries:
+        deep_list = [q.strip() for q in deep_queries.split('\n') if q.strip()]
+        bot.reply_to(message, f"🎯 Найдено имя! ИИ запускает каскадный поиск: {deep_list[0]}...")
+        
+        for q in deep_list[:3]:
+            all_results += search_google(q)
+    else:
+        bot.reply_to(message, "⚠️ Имя не найдено, но продолжаю анализ.")
+
+    bot.reply_to(message, "🧠 <b>Этап 3: Финальный отчет...</b>", parse_mode='HTML')
+
+    # 4. ИИ выдает финальный отчет
+    final_report = ask_groq_agent(user_query, all_results)
+    
+    if len(final_report) > 4000:
+        for i in range(0, len(final_report), 4000):
+            bot.reply_to(message, final_report[i:i+4000])
+    else:
+        bot.reply_to(message, final_report)
 # --- Вебхук для Render ---
 @app.route('/', methods=['GET'])
 def index():
