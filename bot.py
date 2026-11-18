@@ -4,15 +4,16 @@ import requests
 import whois
 from flask import Flask, request
 
-# Берем токен из переменных окружения Render
-BOT_TOKEN = os.environ.get('9082313783:AAG0d10RC63ZTy66xV4nXlfcDp6QOgYH6Zk')
-bot = telebot.TeleBot(9082313783:AAG0d10RC63ZTy66xV4nXlfcDp6QOgYH6Zk)
+# Берем токен из переменных окружения Render, а если их нет - берем твой (для теста)
+BOT_TOKEN = os.environ.get('BOT_TOKEN', '9082313783:AAG0d10RC63ZTy66xV4nXlfcDp6QOgYH6Zk')
+
+bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
 # --- Команды бота ---
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, "Привет! Я OSINT-бот. Пиши:\n/nick username\n/domain example.com\n/phone +79001234567")
+    bot.reply_to(message, "Привет! Я OSINT-бот. Пиши:\n/nick username\n/domain example.com\n/nick +79001234567")
 
 @bot.message_handler(commands=['nick'])
 def search_nick(message):
@@ -29,7 +30,8 @@ def search_nick(message):
         "VK": f"https://vk.com/{nick}"
     }
     
-    result = f"👤 **Результаты по нику {nick}:**\n\n"
+    # Используем HTML-разметку, она безопаснее для ников с дефисами и подчеркиваниями
+    result = f"👤 <b>Результаты по нику {nick}:</b>\n\n"
     for site, url in sites.items():
         try:
             r = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
@@ -38,9 +40,9 @@ def search_nick(message):
             else:
                 result += f"❌ {site}: Не найден\n"
         except:
-            result += f"⚠️ {site}: Ошибка\n"
+            result += f"⚠️ {site}: Ошибка сети\n"
             
-    bot.send_message(message.chat.id, result, parse_mode='Markdown')
+    bot.send_message(message.chat.id, result, parse_mode='HTML')
 
 @bot.message_handler(commands=['domain'])
 def search_domain(message):
@@ -51,12 +53,12 @@ def search_domain(message):
 
     try:
         w = whois.whois(domain)
-        result = f"🌐 **Данные по домену {domain}:**\n\n"
+        result = f"🌐 <b>Данные по домену {domain}:</b>\n\n"
         result += f"👤 Владелец: {w.name if w.name else 'Скрыто'}\n"
         result += f"📅 Регистрация: {w.creation_date if w.creation_date else 'Нет данных'}\n"
         result += f"🏢 Организация: {w.org if w.org else 'Скрыто'}\n"
         result += f"📧 Email: {w.emails if w.emails else 'Скрыто'}\n"
-        bot.send_message(message.chat.id, result, parse_mode='Markdown')
+        bot.send_message(message.chat.id, result, parse_mode='HTML')
     except Exception as e:
         bot.reply_to(message, f"❌ Ошибка: {e}")
 
@@ -70,11 +72,11 @@ def search_phone(message):
     wa_link = f"https://wa.me/{phone.replace('+', '')}"
     tg_link = f"https://t.me/{phone.replace('+', '')}"
     
-    result = f"📱 **Открытые мессенджеры:**\n\n"
+    result = f"📱 <b>Открытые мессенджеры:</b>\n\n"
     result += f"🟢 WhatsApp: {wa_link}\n"
     result += f"🔵 Telegram: {tg_link}\n\n"
-    result += "⚠️ *Данные паспорта и прописки не ищу.*"
-    bot.send_message(message.chat.id, result, parse_mode='Markdown')
+    result += "⚠️ <i>Данные паспорта и прописки не ищу.</i>"
+    bot.send_message(message.chat.id, result, parse_mode='HTML')
 
 # --- Вебхук для Render ---
 @app.route('/', methods=['GET'])
@@ -94,7 +96,6 @@ def webhook():
 # Установка вебхука при старте
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
-    # Замени URL на свой, который выдаст Render!
     render_url = os.environ.get('RENDER_EXTERNAL_URL')
     if render_url:
         bot.remove_webhook()
