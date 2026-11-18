@@ -5,8 +5,8 @@ import whois
 from flask import Flask, request
 
 # Берем токен из переменных окружения Render
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
-bot = telebot.TeleBot(BOT_TOKEN)
+BOT_TOKEN = os.environ.get('9082313783:AAG0d10RC63ZTy66xV4nXlfcDp6QOgYH6Zk')
+bot = telebot.TeleBot(9082313783:AAG0d10RC63ZTy66xV4nXlfcDp6QOgYH6Zk)
 app = Flask(__name__)
 
 # --- Команды бота ---
